@@ -1,0 +1,15 @@
+[build]
+builder = "nixpacks"
+buildCommand = "composer install --no-dev --optimize-autoloader"
+
+[deploy]
+startCommand = "php artisan serve --host 0.0.0.0 --port $PORT"
+healthcheckPath = "/"
+healthcheckTimeout = 100
+restartPolicyType = "on-failure"
+restartPolicyMaxRetries = 3
+
+[deploy.envs]
+APP_ENV = "production"
+APP_DEBUG = "false"
+APP_URL = "https://energymonitor.railway.app" 
