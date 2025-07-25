@@ -1,13 +1,43 @@
-# Chatify
+# Chatify - Real-Time Chat Application with CI/CD
 
-Chatify is a real-time chat application built using React.js for the frontend and Node.js, Express.js with Socket.IO for the backend server, allowing users to engage in instant messaging.
+Chatify is a real-time chat application built using React.js for the frontend and Node.js, Express.js with Socket.IO for the backend server, with a complete CI/CD pipeline for AWS deployment.
 
-## Project Structure
+## 📁 Project Structure
 
-The project is structured into two main folders:
+```
+├── Chatify/                    # 🚀 Main Application
+│   ├── frontend/              # ⚛️  React.js frontend
+│   ├── server/               # 🟢 Node.js backend with Socket.IO
+│   ├── Dockerfile            # 🐳 Application containerization
+│   ├── docker-compose.yml    # 🔧 Local services orchestration
+│   └── Jenkinsfile          # 🔄 CI/CD pipeline definition
+├── infrastructure/           # 🏗️  DevOps & Infrastructure
+│   ├── terraform/           # ☁️  AWS infrastructure as code
+│   ├── nagios/             # 📊 Application monitoring
+│   ├── scripts/            # 🛠️  Deployment automation
+│   └── github-actions/     # ⚡ CI/CD workflow templates
+├── .github/workflows/      # 🤖 GitHub Actions (auto-generated)
+└── deploy.sh              # 🚀 Main deployment script
+```
 
-- **frontend:** Contains the React application for the user interface.
-- **server:** Contains the Node.js server implementing Socket.IO for real-time messaging.
+## 🎯 Quick Start
+
+### Option 1: One-Command Deployment
+```bash
+./deploy.sh
+```
+
+### Option 2: Step-by-Step
+```bash
+# 1. Setup prerequisites
+infrastructure/scripts/setup-prerequisites.sh
+
+# 2. Configure AWS
+aws configure
+
+# 3. Deploy everything
+infrastructure/scripts/execute-deployment.sh
+```
 
 ## Features
 

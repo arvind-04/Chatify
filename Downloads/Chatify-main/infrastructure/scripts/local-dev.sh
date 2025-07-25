@@ -23,31 +23,33 @@ print_error() {
 print_status "Installing dependencies..."
 
 # Frontend dependencies
-cd Chatify/frontend
+cd ../../Chatify/frontend
 npm install
-cd ../..
+cd ../../infrastructure/scripts
 
 # Backend dependencies  
-cd Chatify/server
+cd ../../Chatify/server
 npm install
-cd ../..
+cd ../../infrastructure/scripts
 
 # 2. Run tests locally
 print_status "Running tests..."
 
 # Frontend tests
-cd Chatify/frontend
+cd ../../Chatify/frontend
 npm test -- --coverage --watchAll=false || true
-cd ../..
+cd ../../infrastructure/scripts
 
 # Backend linting
-cd Chatify/server
+cd ../../Chatify/server
 npm run lint || true
-cd ../..
+cd ../../infrastructure/scripts
 
 # 3. Build Docker image locally
 print_status "Building Docker image..."
+cd ../../
 docker build -t chatify:local ./Chatify
+cd infrastructure/scripts
 
 # 4. Test Docker image
 print_status "Testing Docker image..."

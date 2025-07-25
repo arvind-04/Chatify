@@ -53,7 +53,9 @@ test_locally() {
     print_status "Starting local test environment..."
     
     # Start services locally
-    docker-compose -f docker-compose.yml up -d
+    cd ../../Chatify
+    docker-compose up -d
+    cd ../infrastructure/scripts
     
     print_status "Waiting for services to start..."
     sleep 30
@@ -70,7 +72,7 @@ deploy_infrastructure() {
     
     print_status "Deploying AWS infrastructure with Terraform..."
     
-    cd terraform
+    cd ../terraform
     
     # Check if terraform is initialized
     if [ ! -d ".terraform" ]; then
@@ -99,7 +101,7 @@ deploy_infrastructure() {
         print_warning "Deployment cancelled."
     fi
     
-    cd ..
+    cd ../scripts
 }
 
 deploy_application() {
@@ -126,16 +128,18 @@ deploy_application() {
     
     # Copy files and deploy
     print_status "Copying files to instance..."
-    rsync -avz --exclude='.git' --exclude='terraform/.terraform' . ec2-user@$INSTANCE_IP:/opt/chatify/
+    cd ../../
+    rsync -avz --exclude='.git' --exclude='infrastructure/terraform/.terraform' . ec2-user@$INSTANCE_IP:/opt/chatify/
     
     print_status "Starting deployment on instance..."
     ssh ec2-user@$INSTANCE_IP << 'EOF'
         cd /opt/chatify
         
         # Make scripts executable
-        chmod +x deploy.sh scripts/health-check.sh
+        chmod +x deploy.sh infrastructure/scripts/health-check.sh
         
         # Stop existing containers
+        cd Chatify
         docker-compose down || true
         
         # Build and start containers
@@ -145,7 +149,8 @@ deploy_application() {
         sleep 60
         
         # Run health check
-        ./scripts/health-check.sh
+        cd ../infrastructure/scripts
+        ./health-check.sh
 EOF
     
     print_status "Application deployed successfully!"
@@ -173,12 +178,12 @@ health_check() {
         INSTANCE_IP=$(cat instance_ip.txt)
         print_status "Running health check on instance: $INSTANCE_IP"
         
-        ssh ec2-user@$INSTANCE_IP "cd /opt/chatify && ./scripts/health-check.sh"
+        ssh ec2-user@$INSTANCE_IP "cd /opt/chatify && ./infrastructure/scripts/health-check.sh"
         
         show_urls
     else
         print_status "Running local health check..."
-        ./scripts/health-check.sh
+        ./health-check.sh
     fi
 }
 
@@ -190,9 +195,9 @@ cleanup_resources() {
     echo
     
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        cd terraform
+        cd ../terraform
         terraform destroy -auto-approve
-        cd ..
+        cd ../scripts
         
         # Clean up local files
         rm -f instance_ip.txt terraform-outputs.json

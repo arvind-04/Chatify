@@ -28,23 +28,23 @@ jobs:
 
     - name: Terraform Init
       run: |
-        cd infrastructure/terraform
+        cd terraform
         terraform init
 
     - name: Terraform Plan
       run: |
-        cd infrastructure/terraform
+        cd terraform
         terraform plan
 
     - name: Terraform Apply
       run: |
-        cd infrastructure/terraform
+        cd terraform
         terraform apply -auto-approve
 
     - name: Get EC2 instance IP
       id: get-ip
       run: |
-        cd infrastructure/terraform
+        cd terraform
         echo "instance_ip=$(terraform output -raw instance_public_ip)" >> $GITHUB_OUTPUT
 
     - name: Deploy to EC2
@@ -67,7 +67,6 @@ jobs:
           fi
           
           # Stop existing containers
-          cd Chatify
           docker-compose down || true
           
           # Build and start new containers

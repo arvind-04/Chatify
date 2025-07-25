@@ -25,14 +25,14 @@ services:
     volumes:
       - nagios_etc:/opt/nagios/etc
       - nagios_var:/opt/nagios/var
-      - ./nagios/config:/opt/nagios/etc/objects/custom
+      - ../infrastructure/nagios/config:/opt/nagios/etc/objects/custom
     environment:
       - NAGIOSADMIN_USER=admin
       - NAGIOSADMIN_PASS=admin123
 
   chatify-app:
     build: 
-      context: ./Chatify
+      context: .
       dockerfile: Dockerfile
     container_name: chatify-app
     restart: unless-stopped
