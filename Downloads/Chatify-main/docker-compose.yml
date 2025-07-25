@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: chatify-jenkins
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker
+    environment:
+      - JENKINS_OPTS=--httpPort=8080
+    user: root
+
+  nagios:
+    image: jasonrivers/nagios:latest
+    container_name: chatify-nagios
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    volumes:
+      - nagios_etc:/opt/nagios/etc
+      - nagios_var:/opt/nagios/var
+      - ./nagios/config:/opt/nagios/etc/objects/custom
+    environment:
+      - NAGIOSADMIN_USER=admin
+      - NAGIOSADMIN_PASS=admin123
+
+  chatify-app:
+    build: 
+      context: ./Chatify
+      dockerfile: Dockerfile
+    container_name: chatify-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - nagios
+
+volumes:
+  jenkins_home:
+  nagios_etc:
+  nagios_var:

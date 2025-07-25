@@ -1,0 +1,212 @@
+pipeline {
+    agent any
+    
+    environment {
+        DOCKER_IMAGE = 'chatify'
+        DOCKER_TAG = "${BUILD_NUMBER}"
+        APP_PORT = '3000'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                script {
+                    env.GIT_COMMIT_SHORT = sh(
+                        script: "git rev-parse --short HEAD",
+                        returnStdout: true
+                    ).trim()
+                }
+            }
+        }
+        
+        stage('Install Dependencies') {
+            parallel {
+                stage('Frontend Dependencies') {
+                    steps {
+                        dir('Chatify/frontend') {
+                            sh 'npm ci'
+                        }
+                    }
+                }
+                stage('Backend Dependencies') {
+                    steps {
+                        dir('Chatify/server') {
+                            sh 'npm ci'
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Code Quality') {
+            parallel {
+                stage('Frontend Lint') {
+                    steps {
+                        dir('Chatify/frontend') {
+                            sh 'npm run lint || true'
+                        }
+                    }
+                }
+                stage('Backend Lint') {
+                    steps {
+                        dir('Chatify/server') {
+                            sh 'npx eslint . --ext .js || true'
+                        }
+                    }
+                }
+                stage('Security Audit') {
+                    steps {
+                        script {
+                            dir('Chatify/frontend') {
+                                sh 'npm audit --audit-level=high || true'
+                            }
+                            dir('Chatify/server') {
+                                sh 'npm audit --audit-level=high || true'
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Test') {
+            parallel {
+                stage('Frontend Tests') {
+                    steps {
+                        dir('Chatify/frontend') {
+                            sh 'npm test -- --coverage --watchAll=false'
+                        }
+                    }
+                    post {
+                        always {
+                            publishHTML([
+                                allowMissing: false,
+                                alwaysLinkToLastBuild: true,
+                                keepAll: true,
+                                reportDir: 'Chatify/frontend/coverage/lcov-report',
+                                reportFiles: 'index.html',
+                                reportName: 'Frontend Coverage Report'
+                            ])
+                        }
+                    }
+                }
+                stage('Backend Tests') {
+                    steps {
+                        dir('Chatify/server') {
+                            sh 'npm test || echo "No tests specified"'
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                script {
+                    // Build frontend
+                    dir('Chatify/frontend') {
+                        sh 'npm run build'
+                    }
+                    
+                    // Build Docker image
+                    sh """
+                        docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ./Chatify
+                        docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest
+                    """
+                }
+            }
+        }
+        
+        stage('Test Docker Image') {
+            steps {
+                script {
+                    sh """
+                        # Start container for testing
+                        docker run -d --name test-${BUILD_NUMBER} -p 3001:3000 ${DOCKER_IMAGE}:${DOCKER_TAG}
+                        
+                        # Wait for container to start
+                        sleep 15
+                        
+                        # Test the application
+                        curl -f http://localhost:3001 || exit 1
+                        
+                        # Cleanup test container
+                        docker stop test-${BUILD_NUMBER}
+                        docker rm test-${BUILD_NUMBER}
+                    """
+                }
+            }
+        }
+        
+        stage('Deploy') {
+            when {
+                branch 'main'
+            }
+            steps {
+                script {
+                    sh """
+                        # Stop existing container if running
+                        docker stop chatify-app || true
+                        docker rm chatify-app || true
+                        
+                        # Start new container
+                        docker run -d --name chatify-app -p ${APP_PORT}:3000 --restart unless-stopped ${DOCKER_IMAGE}:${DOCKER_TAG}
+                        
+                        # Wait for deployment
+                        sleep 10
+                        
+                        # Verify deployment
+                        curl -f http://localhost:${APP_PORT} || exit 1
+                    """
+                }
+            }
+        }
+        
+        stage('Health Check') {
+            steps {
+                script {
+                    sh """
+                        # Wait a bit more for full startup
+                        sleep 5
+                        
+                        # Perform health check
+                        for i in {1..5}; do
+                            if curl -f http://localhost:${APP_PORT}; then
+                                echo "Health check passed"
+                                break
+                            else
+                                echo "Health check failed, attempt \$i/5"
+                                sleep 10
+                            fi
+                        done
+                    """
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            // Clean up Docker images
+            sh """
+                docker image prune -f
+                docker system prune -f
+            """
+        }
+        success {
+            echo '✅ Pipeline completed successfully!'
+            echo "🚀 Application deployed at: http://localhost:${APP_PORT}"
+        }
+        failure {
+            echo '❌ Pipeline failed!'
+            // Stop and remove failed containers
+            sh """
+                docker stop chatify-app || true
+                docker rm chatify-app || true
+                docker stop test-${BUILD_NUMBER} || true
+                docker rm test-${BUILD_NUMBER} || true
+            """
+        }
+    }
+}

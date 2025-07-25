@@ -1,0 +1,93 @@
+name: CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.5.0
+
+    - name: Terraform Init
+      run: |
+        cd terraform
+        terraform init
+
+    - name: Terraform Plan
+      run: |
+        cd terraform
+        terraform plan
+
+    - name: Terraform Apply
+      run: |
+        cd terraform
+        terraform apply -auto-approve
+
+    - name: Get EC2 instance IP
+      id: get-ip
+      run: |
+        cd terraform
+        echo "instance_ip=$(terraform output -raw instance_public_ip)" >> $GITHUB_OUTPUT
+
+    - name: Deploy to EC2
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ steps.get-ip.outputs.instance_ip }}
+        username: ec2-user
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          # Update system and pull latest code
+          sudo yum update -y
+          
+          # Clone or update repository
+          if [ -d "/opt/chatify/.git" ]; then
+            cd /opt/chatify
+            git pull origin main
+          else
+            git clone https://github.com/${{ github.repository }}.git /opt/chatify
+            cd /opt/chatify
+          fi
+          
+          # Stop existing containers
+          docker-compose down || true
+          
+          # Build and start new containers
+          docker-compose up -d --build
+          
+          # Wait for services to be ready
+          sleep 30
+          
+          # Verify deployment
+          curl -f http://localhost:3000 || exit 1
+          
+          echo "Deployment completed successfully"
+
+    - name: Notify deployment status
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "✅ Deployment successful!"
+          echo "🚀 App URL: http://${{ steps.get-ip.outputs.instance_ip }}:3001"
+          echo "🔧 Jenkins URL: http://${{ steps.get-ip.outputs.instance_ip }}:8080"
+          echo "📊 Nagios URL: http://${{ steps.get-ip.outputs.instance_ip }}:8081"
+        else
+          echo "❌ Deployment failed!"
+        fi
